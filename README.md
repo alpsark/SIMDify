@@ -1,5 +1,6 @@
-# Version Differences
-This is the fourth chekpoint of my thesis. It encomposes finest version of the imporovments of the first eight weeks. Large atapath c file is parsed and divided in mini c files for specific functions. 
+# What is This?
+
+This repository is for my thesis and its corresponding article titled *SIMDify: Framework for SIMD-Processing with RISC-V Scalar Instruction Set* accepted in AusPDC 2021.
 
 
 # HLS-RISCV-32IM-datapath
@@ -68,6 +69,22 @@ riscv-none-embed-objdump --disassembler-options=no-aliases,numeric -D -g  _$OPTI
 riscv-none-embed-objcopy -O binary  --remove-section  .text* --remove-section .text.startup --strip-debug  _$OPTIMIZATION.exe $CFILE$OPTIMIZATION.mem
 riscv-none-embed-objdump  -s  -b binary --adjust-vma=$data_mem_start_adress  $CFILE$OPTIMIZATION.mem  > $CFILE$OPTIMIZATION.mdump
 
+#WINDOWS
+You can download riscv windows compiler from https://www.sifive.com/software
+SET  CFILE="dct8"
+SET OPTIMIZATION="3"
+SET INST_SET="rv32im"
+SET MABI="ilp32" 
+SET data_mem_start_adress="0x4000"
+
+del _%OPTIMIZATION%.exe
+riscv64-unknown-elf-gcc -mabi=%MABI% -g0 -O%OPTIMIZATION% -march=%INST_SET%  -Wl,--no-relax -nostartfiles start.S %CFILE%.c -T link.ld -o _%OPTIMIZATION%.exe -lm
+riscv64-unknown-elf-objcopy -O binary -j .text* -j  .text.startup _%OPTIMIZATION%.exe "%CFILE%%OPTIMIZATION%.hex" 
+riscv64-unknown-elf-objdump -d _%OPTIMIZATION%.exe > "%CFILE%%OPTIMIZATION%.idump"
+riscv64-unknown-elf-objdump --disassembler-options=no-aliases,numeric -D -g  _%OPTIMIZATION%.exe > "%CFILE%%OPTIMIZATION%.all"
+riscv64-unknown-elf-objcopy -O binary  --remove-section  .text* --remove-section .text.startup --strip-debug  _%OPTIMIZATION%.exe "%CFILE%%OPTIMIZATION%.mem"
+riscv64-unknown-elf-objdump  -s  -b binary --adjust-vma=%data_mem_start_adress%  "%CFILE%%OPTIMIZATION%.mem"  > "%CFILE%%OPTIMIZATION%.mdump"
+
 
 ```
 
@@ -85,4 +102,5 @@ This part generates 4 files:
 3- use **volatile int __attribute__((section(".mySection_par"))) startPar =  0x00;** for  putting variables to spesific addresses.   
 4- Normally instruction memory starts with 0x0000 and data memory starts with 0xa000(40K), but you can change this in linker file(link.ld).   
 
+After generating machine code, you can run HLS algorithm using DefinedPrimitives/sim.bat or _UserDefinedPrimitives/sim.sh after changing _UserDefinedPrimitives/Define_instruction_filepath and _UserDefinedPrimitives/parallel_primitives text files.
 
