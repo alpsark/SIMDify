@@ -1,0 +1,25 @@
+# This is a comment
+# Space after # is necessary
+# Do not change the order of paths
+# path to LUT:
+../LUT.txt
+# path to GLUT:
+../GLUT.txt
+# path to hex:
+../hex/illustrativemultiply3.hex
+# path to memory:
+../hex/illustrativemultiply3.mem
+# memory start adress value, rom length in the link.ld 16k = 16384 = 0x4000:
+16384
+# memory size value, stack origin+length in the link.ld 32k = 32768 = 0x8000:
+32768
+# myadress_par : ORIGIN = 24K, LENGTH = 4 
+24576
+# myadress_par_num : ORIGIN = 24K+4, LENGTH = 4 
+24580
+# myadress_arr_str : ORIGIN = 24K+8, LENGTH = 4
+24584
+# myadress_arr_end : ORIGIN = 24K+12, LENGTH = 4
+24588
+# Ending Is Done by ENDOFLUT comment
+ENDOFLUT

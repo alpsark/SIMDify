@@ -1,0 +1,58 @@
+### Vivado ### #########################################################################################################  
+## This is an example .gitignore file for Vivado, please treat it as an example as  
+## it might not be complete. In addition, XAPP 1165 should be followed.  
+#########  
+#Exclude all  
+*
+!*/
+!.gitignore  
+
+########################################################################### 
+
+# For git
+!*.md
+!LICENSE
+
+# General
+!*.pdf
+!*.txt
+!*.bat
+!*.sh
+
+# for HLS
+new_define_hls/solution1/*
+!new_define_hls/solution1/call.tcl
+data_path/solution1/*
+!data_path/solution1/csynth2.tcl
+*inst.txt
+
+
+# C files
+!*.cpp
+!*.c
+!*.h
+!*.hpp
+
+# For compiler
+!*.ld
+!*.S
+
+# From compiler
+# !*.all
+# !*.hex
+# !*.idump
+# !*.mdump
+# !*.mem
+
+# HLS generated headers
+define_instructions.h
+new_define.h
+parallel.h
+
+
+*/*/sim/
+*/*/csim/
+*/*/impl/
+*/*/syn/
+*/*/.autopilot/
+*/*/.debug/

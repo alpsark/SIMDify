@@ -1,0 +1,14 @@
+# This is a comment
+# Space after # is necessary
+# Do not change the order of paths
+# Activate cache 1/0
+0
+# Override default_pararallel_num 1/0
+1
+# New parallel num if 1 no parallel
+5
+# extramemsize //size is data_type mem_extra[extramem_size]  so extramem_size*32
+8192
+# local data memory size, 1 for every 8 bits for mem byte 4096*4
+16384
+ENDOFLUT
