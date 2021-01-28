@@ -576,7 +576,7 @@ void memorycall(struct Memoryregs &memoryreg,struct Executeregs executereg,volat
 return;
 }
 
-void fetchcall(struct FetchRegs &fetchreg, ap_uint<32> pc){
+void fetchcall(struct FetchRegs &fetchreg, ap_uint<32> pc, int parloopcount){
 #pragma HLS inline off
 
 	fetchreg.nextPC=   pc+ 4;
@@ -584,7 +584,13 @@ void fetchcall(struct FetchRegs &fetchreg, ap_uint<32> pc){
 
 
 #ifdef parallel_mode
-	fetchreg.isparmode = ( (pc<= Par_end_addr) && (pc>=Par_start_addr));
+	fetchreg.isparmode = ( (pc<= Par_end_addr[parloopcount]) && (pc>=Par_start_addr[parloopcount]));
+
+	if(pc==Par_end_addr[parloopcount] && parloopcount!=(number_of_parloops))
+		fetchreg.parloopcount = parloopcount+1;
+	else
+		fetchreg.parloopcount = parloopcount;
+
 #else
 	fetchreg.isparmode = false;
 #endif
@@ -737,6 +743,8 @@ void setCore (Core &core, FetchRegs fetchreg,  Executeregs executereg , Memoryre
 	branchUnit(fetchreg.nextPC, decodereg.nextPCDC, decodereg.isBranch, instcounter, core.pc, stall, core.stall , core.instcounter, fetchreg.isopcodeBranch,Branchpc, core.Branchpc, prevbranchraken, core.prevbranchraken ,decodereg.isopcodeBranch  , decodereg.ismispredict, decodereg.nextPCMispredict, decodereg.isopcodeBranchorJump );
 	core.instcounter = instcounter;
 	core.stall = stall;
+	core.parloopcount=fetchreg.parloopcount;
+
 }
 
 void executeCore (Core core, FetchRegs &fetchreg,  Executeregs &executereg , Memoryregs &memoryreg, Decoderegs &decodereg, Writebackregs &writebackreg, bool &stall, int & instcounter, volatile data_type * mem_extra ,ap_uint<32> &Branchpc, bool &prevbranchraken) {
@@ -744,7 +752,7 @@ void executeCore (Core core, FetchRegs &fetchreg,  Executeregs &executereg , Mem
 #pragma HLS latency min=0 max=0
 #pragma HLS Pipeline
 
-	 fetchcall(fetchreg,core.pc);
+	 fetchcall(fetchreg,core.pc,core.parloopcount);
 	 //execute(executereg,core.decodereg); //8.51 mul 2.5 mux
 	 decwb(decodereg,writebackreg,core.fetchreg,core.memoryreg,rf,core.prevbranchraken, core.Branchpc);
 
@@ -767,25 +775,34 @@ void myrun (volatile data_type mem_extra[extramem_size] ) {
 	 core.fetchreg.pc = 0;
 	 core.fetchreg.nextPC = 0;
 	 core.fetchreg.instruction2 = 0;
+	 core.fetchreg.parloopcount = 0;
 
 	 core.decodereg.rf_addr = 0;
 	 core.decodereg.useRd = 0;
 	 core.decodereg.rd = 0;
 	 core.decodereg.opCode = 0;
+	 core.decodereg.parloopcount = 0;
 
 	 core.executereg.useRd = 0;
 	 core.executereg.opCode = 0;
+	 core.executereg.parloopcount = 0;
+	 core.executereg.pc = 0;
 
 	 core.memoryreg.useRd = 0;
 	 core.memoryreg.rd = 0;
+	 core.memoryreg.isstartparmode = 0;
+	 core.memoryreg.isparmode = false;
+	 core.memoryreg.parloopcount = 0;
 	 core.stall = false;
 	 core.instcounter =0;
 	 core.Branchpc = false;
 	 core.prevbranchraken = false;
 
+	 core.parloopcount = 0;
+
 	 while(true) {
 #ifndef activatecache
-#pragma HLS latency min=0 max=0
+#pragma HLS latency max=0 min=0
 #else
 #pragma HLS latency max=1
 #endif
@@ -809,25 +826,51 @@ void myrun (volatile data_type mem_extra[extramem_size] ) {
 #ifdef parallel_mode
 	#pragma HLS ARRAY_PARTITION variable=mem_par complete  dim=1
 	#pragma HLS ARRAY_PARTITION variable=mem_par complete  dim=3
+	#pragma HLS ARRAY_PARTITION variable=for_init complete  dim=1
+	#pragma HLS ARRAY_PARTITION variable=for_end complete  dim=1
+	#pragma HLS ARRAY_PARTITION variable=for_delta complete  dim=1
+	#pragma HLS ARRAY_PARTITION variable=Par_num_from_c complete  dim=1
+	#pragma HLS ARRAY_PARTITION variable=start_reg complete  dim=1
+	#pragma HLS ARRAY_PARTITION variable=end_reg complete  dim=1
+	#pragma HLS ARRAY_PARTITION variable=Par_start_addr complete  dim=1
+	#pragma HLS ARRAY_PARTITION variable=Par_end_addr complete  dim=1
+	#pragma HLS ARRAY_PARTITION variable=init_simd_offset complete  dim=1
+	#pragma HLS ARRAY_PARTITION variable=final_end_core complete  dim=1
+	#pragma HLS ARRAY_PARTITION variable=final_start_core complete  dim=1
+	#pragma HLS ARRAY_PARTITION variable=for_array_init complete
+	#pragma HLS ARRAY_PARTITION variable=for_array_parstart complete
+	#pragma HLS ARRAY_PARTITION variable=for_array_end complete
+	#pragma HLS ARRAY_PARTITION variable=final_Par_num complete
 #endif
+
 
 	#pragma HLS ARRAY_PARTITION variable=mem complete  dim=2
 
+	#pragma HLS ARRAY_PARTITION variable=core.decodereg.isactive complete  dim=1
 	#pragma HLS ARRAY_PARTITION variable=core.executereg.result complete  dim=1
 	#pragma HLS ARRAY_PARTITION variable=core.executereg.address complete  dim=1
+	#pragma HLS ARRAY_PARTITION variable=core.executereg.isactive complete  dim=1
 	#pragma HLS ARRAY_PARTITION variable=core.memoryreg.result complete  dim=1
 	#pragma HLS ARRAY_PARTITION variable=core.memoryreg.valueToWrite complete  dim=1
 	#pragma HLS ARRAY_PARTITION variable=core.memoryreg.address complete  dim=1
 	#pragma HLS ARRAY_PARTITION variable=core.memoryreg.addr_arr complete  dim=1
 	#pragma HLS ARRAY_PARTITION variable=core.memoryreg.isparmode_or_addr_arr complete  dim=1
+	#pragma HLS ARRAY_PARTITION variable=core.memoryreg.isactive complete  dim=1
+	#pragma HLS ARRAY_PARTITION variable=core.memoryreg.forarrayparstart complete  dim=1
+	#pragma HLS ARRAY_PARTITION variable=core.memoryreg.forarrayend complete  dim=1
 
+	#pragma HLS ARRAY_PARTITION variable=decodereg.isactive complete  dim=1
 	#pragma HLS ARRAY_PARTITION variable=executereg.result complete  dim=1
 	#pragma HLS ARRAY_PARTITION variable=executereg.address complete  dim=1
+	#pragma HLS ARRAY_PARTITION variable=executereg.isactive complete  dim=1
 	#pragma HLS ARRAY_PARTITION variable=memoryreg.result complete  dim=1
 	#pragma HLS ARRAY_PARTITION variable=memoryreg.valueToWrite complete  dim=1
 	#pragma HLS ARRAY_PARTITION variable=memoryreg.address complete  dim=1
 	#pragma HLS ARRAY_PARTITION variable=memoryreg.addr_arr complete  dim=1
 	#pragma HLS ARRAY_PARTITION variable=memoryreg.isparmode_or_addr_arr complete  dim=1
+	#pragma HLS ARRAY_PARTITION variable=memoryreg.isactive complete  dim=1
+	#pragma HLS ARRAY_PARTITION variable=memoryreg.forarrayparstart complete  dim=1
+	#pragma HLS ARRAY_PARTITION variable=memoryreg.forarrayend complete  dim=1
 
 	#pragma HLS dependence variable=core inter false
 	#pragma HLS dependence variable=fetchreg inter false
@@ -850,14 +893,16 @@ void myrun (volatile data_type mem_extra[extramem_size] ) {
 	#pragma HLS resource variable=inst_mem core=ROM_1P_1S
 #pragma HLS ARRAY_PARTITION variable=rf complete  dim=1
 
-	#pragma HLS ARRAY_PARTITION variable=for_array_init complete  dim=1
 
-	/*if (core.pc == 0x674) {
+
+  /*  if (core.pc == 0x1e4) {
 		 		 int x = 1;
 		 		// return  false  ;
 		 	}*/
 
 	//if (core.executereg.rf_addr != par_num){
+
+
 
 	executeCore (core, fetchreg,   executereg ,  memoryreg,  decodereg,writebackreg, stall, instcounter,mem_extra,Branchpc, prevbranchraken);
 	execute(executereg,core.decodereg);
@@ -873,16 +918,17 @@ void myrun (volatile data_type mem_extra[extramem_size] ) {
 #endif
 
 
-
-
-//8.51 mul 2.5 mux
-
 	if(executereg.boolval){
 		setCore(core.executereg , executereg,EmptyExecute, false, false);
 		setCore (core, fetchreg,   executereg ,  memoryreg,  decodereg,writebackreg,stall, instcounter,Branchpc, prevbranchraken,cachefailresult) ;
 	}else {
 		break;
 	}
+
+
+//8.51 mul 2.5 mux
+
+
 
 
 	};

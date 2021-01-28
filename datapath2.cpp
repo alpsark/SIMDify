@@ -3,7 +3,6 @@
 #include "datapath2.h"
 
 
-
 //struct FtoDC ftoDC,struct Decodereg &Decodereg,ap_int<32> registerFile[64])
 template <class T,class U>
 void loopunrollassign_arrtoarr(T* from,U* to){
@@ -25,40 +24,68 @@ void loopunrollassign_valtoarr(T from,U* to){
 void decwb(struct Decoderegs &Decodereg,struct Writebackregs &Writebackreg,struct FetchRegs FetchReg,struct Memoryregs Memoryreg,uint32_t rf[par_num][32], bool prevbranchraken ,ap_uint<32> Branchpc)
 {
 	#pragma HLS inline off
-
+#pragma HLS dependence variable=rf inter false
   //Register access
     ap_uint<32> valueReg1[par_num];
     ap_uint<32> valueReg2[par_num];
 #pragma HLS ARRAY_PARTITION variable=valueReg1 complete  dim=1
 #pragma HLS ARRAY_PARTITION variable=valueReg2 complete  dim=1
-
-initlize_par:for(int i = 0;i<par_num;i++){
-        #pragma HLS UNROLL
-	valueReg1[i] = (ap_uint<32>)rf[i][FetchReg.instruction2.range(19,15)];
-	valueReg2[i] = (ap_uint<32>)rf[i][FetchReg.instruction2.range(24,20)];
-    }
+#pragma HLS ARRAY_PARTITION variable=Memoryreg.result complete  dim=1
 
 
+    Decodereg.isactive[par_num] = 1;
 
-Decodereg.isparmode = FetchReg.isparmode;
-	Writebackreg.useRd = Memoryreg.useRd;
-	Writebackreg.rd = Memoryreg.rd;
-	loopunrollassign_valtoarr(0,Writebackreg.value);
-	if( Memoryreg.useRd){
+    Decodereg.isparmode = FetchReg.isparmode;
+    	Writebackreg.useRd = Memoryreg.useRd;
+    	Writebackreg.rd = Memoryreg.rd;
+    	loopunrollassign_valtoarr(0,Writebackreg.value);
+#ifdef parallel_mode
+#pragma HLS ARRAY_PARTITION variable=final_end_core complete  dim=1
+#pragma HLS ARRAY_PARTITION variable=for_array_end complete  dim=1
+#pragma HLS ARRAY_PARTITION variable=for_array_parstart complete  dim=1
 
+    	Decodereg.finalendcore= 	final_end_core[FetchReg.parloopcount];
+    	Decodereg.forarrayend= 	for_array_end[final_end_core[FetchReg.parloopcount]];
+    	Decodereg.forarrayparstart = for_array_parstart[final_end_core[FetchReg.parloopcount]];
+    	Decodereg.fordelta	=	for_delta[FetchReg.parloopcount];
+    	Decodereg.forend =  for_end[FetchReg.parloopcount];
+#endif
+
+
+    initlize_par:for(int i = 0;i<par_num;i++){
+            #pragma HLS UNROLL
+    	Decodereg.isactive[i] = i <= final_end_core[FetchReg.parloopcount] && i>= final_start_core[FetchReg.parloopcount];
+
+    	valueReg1[i] = (ap_uint<32>)rf[i][FetchReg.instruction2.range(19,15)];
+    	valueReg2[i] = (ap_uint<32>)rf[i][FetchReg.instruction2.range(24,20)];
+        }
+
+	if( Memoryreg.useRd|| Memoryreg.isstartparmode ){//
+//
 	if (Memoryreg.isparmode){
+			set_r1:for(int i = 0;i<par_num;i++){
+					#pragma HLS UNROLL
+				//	   rf[i][Memoryreg.rd] = (uint32_t)Memoryreg.result[i] ;
+				//problem
+				rf[i][Memoryreg.rd] = Memoryreg.isactive[i] ? (uint32_t)Memoryreg.result[i] : (uint32_t)Memoryreg.result[Memoryreg.finalendcore ];
+				//rf[i][Memoryreg.rd] = (uint32_t)Memoryreg.result[i] ;
 
-		    set_r1:for(int i = 0;i<par_num;i++){
-    	            #pragma HLS UNROLL
-	   rf[i][Memoryreg.rd] = (uint32_t)Memoryreg.result[i] ;
-    }
+			}
 	} else {
 #ifdef parallel_mode
-if ( Memoryreg.pc == (Par_start_addr-init_simd_offset)) {//todo
-	    		startpar:for(int i = 0;i<par_num;i++){
+
+
+if ( Memoryreg.isstartparmode) {//todo
+	    		startpar:for(int i = 0 ;i<par_num;i++){
 	        					#pragma HLS UNROLL
-	        					rf[i ][start_reg] = for_array_parstart[i ];
-	        					rf[i ][end_reg]= for_array_end[i ] ;
+	    			//	        					rf[i ][start_reg] = for_array_parstart[i ];
+					//							   rf[i ][end_reg]= for_array_end[i ] ;
+
+	    			rf[i ][ start_reg[Memoryreg.parloopcount]] = (uint32_t) Memoryreg.forarrayparstart[i  ];
+	    			rf[i ][ end_reg[Memoryreg.parloopcount]	]= (uint32_t)Memoryreg.forarrayend[i];
+
+	    			//rf[i ][Memoryreg.startreg] = Memoryreg.isactive[i] ? for_array_parstart[i  ] :for_array_parstart[Memoryreg.finalendcore ];
+	    			//rf[i ][Memoryreg.endreg]= Memoryreg.isactive[i]? for_array_end[i  ]:	 for_array_end[Memoryreg.finalendcore ];
 
 	        	}
 				//decode(mycore.decodereg, mycore.fetchreg);
@@ -124,7 +151,7 @@ if ( Memoryreg.pc == (Par_start_addr-init_simd_offset)) {//todo
 	Decodereg.isopcodeBranch = FetchReg.isopcodeBranch;
 	Decodereg.isopcodeBranchorJump = 0;
 	Decodereg.isopcodeStoreorLoad = 0;
-
+	Decodereg.parloopcount = FetchReg.parloopcount;
 
 
 	bool temp_useRd;
@@ -320,9 +347,12 @@ if ( Memoryreg.pc == (Par_start_addr-init_simd_offset)) {//todo
 void execute(struct Executeregs &Executereg,struct Decoderegs Decodereg) {
 #pragma HLS inline off
 #pragma HLS latency max=0
+#pragma HLS ARRAY_PARTITION variable=Decodereg.isactive complete  dim=1
 
 #ifdef parallel_mode
 #pragma HLS resource variable=addrlut core=ROM_1P_1S
+#pragma HLS ARRAY_PARTITION variable=for_array_end complete
+
 #endif
 
 	Executereg.pc = Decodereg.pc;
@@ -332,17 +362,28 @@ void execute(struct Executeregs &Executereg,struct Decoderegs Decodereg) {
 
 	Executereg.rd = Decodereg.rd;
 	Executereg.useRd = Decodereg.useRd;
-	
+	Executereg.parloopcount = Decodereg.parloopcount;
+	Executereg.finalendcore = Decodereg.finalendcore ;
+
 	Executereg.isLongInstruction = 0;
 	Executereg.instruction = Decodereg.instruction;
 #ifdef parallel_mode
 	Executereg.rf_addr = (Decodereg.rf_addr> addlutsize) ?  ext :  addrlut[Decodereg.rf_addr.range(31,2)];
-	Executereg.isparmode = Decodereg.isparmode && (	Decodereg.isopcodeStoreorLoad ? ((Decodereg.rf_addr<for_end ) && (Decodereg.rf_addr>=(for_end-for_delta))) : true  );//parmode and common memory
+	Executereg.forarrayend =   Decodereg.forarrayend;
+    Executereg.forarrayparstart = Decodereg.forarrayparstart;
+	//Executereg.isparmode = Decodereg.isparmode && (	Decodereg.isopcodeStoreorLoad ? ((Decodereg.rf_addr<for_end[0] ) && (Decodereg.rf_addr>=(for_end[0]-for_delta[0]))) : true  );//parmode and common memory
+	//pðroblem 1 Executereg.isparmode
+	//Executereg.isparmode = Decodereg.isparmode && (	Decodereg.isopcodeStoreorLoad ? ((Decodereg.rf_addr<for_end[Decodereg.parloopcount-1] ) && (Decodereg.rf_addr>=(for_end[Decodereg.parloopcount-1]-for_delta[Decodereg.parloopcount-1]))) : true  );//parmode and common memory
+	Executereg.isparmode = Decodereg.isparmode && (	Decodereg.isopcodeStoreorLoad ? ((Decodereg.rf_addr<Decodereg.forend ) && (Decodereg.rf_addr>=(Decodereg.forend -Decodereg.fordelta))) : true  );//parmode and common memory
 
 	addrset:for(int i = 0;i<par_num+1;i++){
 		#pragma HLS UNROLL
 		Executereg.addr_arr[i]	= Executereg.rf_addr == (memorybits) i ;
-		Executereg.isparmode_or_addr_arr[i]	= Executereg.isparmode || Executereg.addr_arr[i] ;
+		if(Decodereg.isactive[i] ){ //only activate necessary cores
+			Executereg.isparmode_or_addr_arr[i]	= Executereg.isparmode || Executereg.addr_arr[i] ;
+		}else {
+			Executereg.isparmode_or_addr_arr[i]	= Executereg.addr_arr[i];
+		}
 	}
 
 
@@ -372,7 +413,10 @@ void execute(struct Executeregs &Executereg,struct Decoderegs Decodereg) {
 		#pragma HLS UNROLL
 		Executereg.address[i] = 0;
 		Executereg.result[i] = 0;
+		Executereg.isactive[i] = Decodereg.isactive[i];
 	}
+
+
     Executereg.address[par_num] = 0;
   //  bool returnval = true;
 
@@ -795,9 +839,26 @@ void memory(struct Memoryregs &Memoryreg,struct Executeregs Executereg){
     Memoryreg.useRd = Executereg.useRd;
     Memoryreg.rd = Executereg.rd;
     Memoryreg.isparmode = Executereg.isparmode;
+    Memoryreg.parloopcount = Executereg.parloopcount;
+    Memoryreg.isstartparmode = Executereg.pc == (Par_start_addr[Executereg.parloopcount]-init_simd_offset[Executereg.parloopcount]);
 
     ap_uint<32> mem_read;
     memOpType OpType;
+
+    Memoryreg.finalendcore = Executereg.finalendcore ;
+	 Memoryreg.startreg		=	   start_reg[Executereg.parloopcount];
+	 Memoryreg.endreg 		=				 end_reg[Executereg.parloopcount]		;
+
+    mem:for(int i = 0;i<par_num;i++){
+  	  #pragma HLS UNROLL
+ 		Memoryreg.isactive[i] =Executereg.isactive[i]; //  i <= final_end_core[Executereg.parloopcount-1] && i>= final_start_core[Executereg.parloopcount-1];
+#ifdef parallel_mode
+    	 Memoryreg.forarrayparstart[i]=Executereg.isactive[i] ? (int) for_array_parstart[i  ] :Executereg.forarrayparstart;
+     	Memoryreg.forarrayend[i]= Executereg.isactive[i]? (int)for_array_end[i  ]:	 Executereg.forarrayend ;
+#endif
+    	//rf[i ][Memoryreg.startreg] = Memoryreg.isactive[i] ? for_array_parstart[i  ] :for_array_parstart[Memoryreg.finalendcore ];
+		//rf[i ][Memoryreg.endreg]= Memoryreg.isactive[i]? for_array_end[i  ]:	 for_array_end[Memoryreg.finalendcore ];
+     }
 
 
     memMask mask;
@@ -837,7 +898,10 @@ void memory(struct Memoryregs &Memoryreg,struct Executeregs Executereg){
     		#pragma HLS UNROLL
     		Memoryreg.addr_arr[i]	= Executereg.addr_arr[i];
     		Memoryreg.isparmode_or_addr_arr[i]	= Executereg.isparmode_or_addr_arr[i];
+
     	}
+
+
 
         Memoryreg.rf_addr = Executereg.rf_addr ;
         OpType =  LD;
@@ -847,16 +911,18 @@ void memory(struct Memoryregs &Memoryreg,struct Executeregs Executereg){
         	Memoryreg.isStore = 1;
         	Memoryreg.isLoad = 0;
         	Memoryreg.byteEnable = 0xf;
-            ST_mem:for(int i = 0;i<par_num;i++){
-          	            #pragma HLS UNROLL
-                  	Memoryreg.valueToWrite[i]  = Executereg.datac[i] ;
-
-                  }
         	addrset2:for(int i = 0;i<par_num+1;i++){
         		#pragma HLS UNROLL
         		Memoryreg.addr_arr[i]	= Executereg.addr_arr[i];
         		Memoryreg.isparmode_or_addr_arr[i]	= Executereg.isparmode_or_addr_arr[i];
         	}
+
+            ST_mem:for(int i = 0;i<par_num;i++){
+          	            #pragma HLS UNROLL
+                  	Memoryreg.valueToWrite[i]  = Executereg.datac[i] ;
+
+                  }
+
 
 
             Memoryreg.rf_addr = Executereg.rf_addr ;
@@ -866,12 +932,7 @@ void memory(struct Memoryregs &Memoryreg,struct Executeregs Executereg){
     default:
     	Memoryreg.isStore = 0;
     	Memoryreg.isLoad = 0;
-        DEF_mem:for(int i = 0;i<par_num;i++){
-        	            #pragma HLS UNROLL
-        	Memoryreg.result[i] = Executereg.result[i];
 
-
-                }
         OpType =  NONE;
 
     	addrset3:for(int i = 0;i<par_num+1;i++){
@@ -879,6 +940,15 @@ void memory(struct Memoryregs &Memoryreg,struct Executeregs Executereg){
     		Memoryreg.addr_arr[i]	= false;
     		Memoryreg.isparmode_or_addr_arr[i]	= Executereg.isparmode;
     	}
+
+        DEF_mem:for(int i = 0;i<par_num;i++){
+        	            #pragma HLS UNROLL
+        	Memoryreg.result[i] = Executereg.result[i];
+        	//Memoryreg.result[i] = (i <= final_end_core[Executereg.parloopcount-1] && i>= final_start_core[Executereg.parloopcount-1]) ? (uint32_t)Executereg.result[i] : (uint32_t)Executereg.result[final_end_core[Executereg.parloopcount-1]  ];
+
+
+                }
+
     	Memoryreg.addr_arr[par_num-1] = true;
     	Memoryreg.isparmode_or_addr_arr[par_num-1] = true;
         Memoryreg.rf_addr = (memorybits) (par_num-1) ;

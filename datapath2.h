@@ -199,6 +199,7 @@ struct FetchRegs
     ap_uint<32> nextPC;      // Next pc according to fetch
     bool isparmode;
     bool isopcodeBranch;
+	int parloopcount;
 };
 
 void fetch(struct FetchRegs &FetchReg, ap_uint<32> instruction,ap_uint<32> PC );
@@ -240,6 +241,14 @@ struct Decoderegs
     bool isopcodeBranchorJump ;
     ap_uint<32> nextPCMispredict ;
     bool 	isopcodeStoreorLoad ;
+	int parloopcount ;
+	bool isactive[par_num+1];
+	int finalendcore;
+	int forarrayend;
+	int forarrayparstart;
+	int forend;
+	int fordelta;
+
 
 };
 
@@ -275,6 +284,11 @@ struct Executeregs
      bool iscalloutsidemem;
      bool addr_arr[par_num+1];
      bool isparmode_or_addr_arr[par_num+1];
+ 	int parloopcount ;
+	bool isactive[par_num];
+	int finalendcore;
+	int forarrayend;
+	int forarrayparstart;
 
 };
 
@@ -304,7 +318,16 @@ struct Memoryregs
     cache_address_s cache_addr_1;
     bool addr_arr[par_num+1];
     bool isparmode_or_addr_arr[par_num+1];
+	int parloopcount ;
+	bool isactive[par_num+1];
+	bool isstartparmode;
+	int finalendcore;
+	int startreg;
+	int endreg;
+	int forarrayparstart[par_num];
+	int forarrayend[par_num];
 };
+
 
 
 void memory(struct Memoryregs &Memoryreg,struct Executeregs Executereg);
@@ -342,7 +365,7 @@ struct Core {
 	//bool isparmode;
 	//ap_uint<32>  nextInst ;
 	//ap_int<32> rf[32];
-
+	int parloopcount;
 };
 
 
