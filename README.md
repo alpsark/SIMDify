@@ -1,6 +1,6 @@
 # What is This?
 
-This repository is for my thesis and its corresponding article titled *SIMDify: Framework for SIMD-Processing with RISC-V Scalar Instruction Set* accepted in AusPDC 2021.
+This repository is for my thesis and its corresponding article titled *SIMDify: Framework for SIMD-Processing with RISC-V Scalar Instruction Set* accepted in AusPDC 2021. It uses Vivado HLS to generate automated SIMD capable processors.
 
 
 # HLS-RISCV-32IM-datapath
