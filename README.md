@@ -2,7 +2,7 @@
 
 This repository is for my thesis and its corresponding article titled *SIMDify: Framework for SIMD-Processing with RISC-V Scalar Instruction Set* accepted in AusPDC 2021. It uses Vivado HLS to generate automated SIMD capable processors.
 
-You can cite this work as: 
+**You can cite this work as:**   
 M. A. Sarkisla and A. Yurdakul, “SIMDify: Framework for SIMD-Processing with RISC-V Scalar Instruction Set,” 19th Australasian Symposium on Parallel and Distributed Computing (AusPDC’21) (in Australasian Computer Science Week Multiconference (ACSW '21)), 1 - 7, February 2021, DOI: 10.1145/3437378.3444364
 
 # HLS-RISCV-32IM-datapath
